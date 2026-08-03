@@ -11,7 +11,7 @@ from uuid import UUID
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
-@router.get("/", response_model=list[SessionResponse])
+@router.get("", response_model=list[SessionResponse])
 async def list_sessions(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
@@ -19,13 +19,15 @@ async def list_sessions(
     """List all sessions for the authenticated user."""
     result = await db.execute(
         select(InterviewSession)
+        .options(selectinload(InterviewSession.messages))
         .where(InterviewSession.user_id == user_id)
         .order_by(InterviewSession.created_at.desc())
     )
     sessions = result.scalars().all()
+
     return sessions
 
-@router.post("/", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
     session_data: SessionCreate,
     user_id: str = Depends(get_current_user_id),
@@ -40,8 +42,16 @@ async def create_session(
     )
     db.add(new_session)
     await db.commit()
-    await db.refresh(new_session)
-    return new_session
+
+    result = await db.execute(
+        select(InterviewSession)
+        .options(selectinload(InterviewSession.messages))
+        .where(InterviewSession.id == new_session.id)
+    )   
+
+    session = result.scalar_one()
+
+    return session
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
 async def get_session(

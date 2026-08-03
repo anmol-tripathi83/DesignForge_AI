@@ -3,6 +3,8 @@ venv/
 .venv/
 
 # Environment Variables
+.env.local
+.env.production
 .env
 
 # Python Cache
@@ -14,6 +16,20 @@ __pycache__/
 
 # Logs
 *.log
+
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+
+# Vite
+.vite/
+
+# IDE
+.idea/
 
 # OS Files
 .DS_Store
