@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     
     # Gemini
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-2"  
+    EMBEDDING_DIMENSION: int = 768  
     
     # JWT
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
