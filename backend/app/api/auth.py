@@ -65,8 +65,8 @@ async def login(response: Response, login_data: UserLogin, db: AsyncSession = De
         key="access_token",
         value=access_token,
         httponly=True,          # Prevents JavaScript access
-        secure=settings.ENVIRONMENT == "production",  # Send only over HTTPS in production
-        samesite="none" if settings.ENVIRONMENT == "production" else "lax",         # Protects against CSRF
+        secure=True,  # Send only over HTTPS in production
+        samesite="none",         # Protects against CSRF
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
         path="/"
     )
