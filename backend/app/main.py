@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import health, auth, sessions  
+from app.api import health, auth, sessions, interview  
 from app.core.logging import logger
 from app.core.config import settings
 
@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router) 
 app.include_router(sessions.router)
+app.include_router(interview.router)
 
 @app.on_event("startup")
 async def startup_event():
