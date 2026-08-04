@@ -1,13 +1,11 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
-
-// Placeholder pages (we'll build these in later milestones)
-const LoginPage = () => <div className="p-8 text-center">Login Page (Coming Soon)</div>;
-const RegisterPage = () => <div className="p-8 text-center">Register Page (Coming Soon)</div>;
-const InterviewPage = () => <div className="p-8 text-center">Interview Page (Coming Soon)</div>;
-const HistoryPage = () => <div className="p-8 text-center">History Page (Coming Soon)</div>;
+import InterviewPage from './pages/InterviewPage';
+import HistoryPage from './pages/HistoryPage';
 
 function App() {
   const { user, fetchUser, isLoading } = useAuthStore();

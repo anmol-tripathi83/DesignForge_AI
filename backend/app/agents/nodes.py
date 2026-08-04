@@ -13,33 +13,47 @@ from app.agents.state import InterviewState
 gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
-def try_parse_json(text: str) -> dict | None:
-    """Attempt to parse JSON from a string with multiple strategies."""
-    # Strategy 1: Direct parse
+def extract_json_from_text(text: str) -> dict | None:
+    """
+    Aggressively extract JSON from a string using multiple strategies.
+    """
+    if not text:
+        return None
+    
+    # Clean the text
+    text = text.strip()
+    
+    # Strategy 1: Try direct JSON parse
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-
+    
     # Strategy 2: Extract from markdown code block
-    match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
-
-    # Strategy 3: Find the first { and last } and try to close missing braces
+    code_block_patterns = [
+        r'```json\s*([\s\S]*?)\s*```',
+        r'```\s*([\s\S]*?)\s*```',
+    ]
+    for pattern in code_block_patterns:
+        match = re.search(pattern, text)
+        if match:
+            try:
+                return json.loads(match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+    
+    # Strategy 3: Find the first { and last } and extract
     start = text.find('{')
     end = text.rfind('}')
-    if start != -1 and end != -1:
+    if start != -1 and end != -1 and start < end:
         candidate = text[start:end+1]
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
-            # Try to fix common issues: trailing commas, missing closing braces
+            # Try to fix common issues
+            # Fix 1: Remove trailing commas before closing braces
             candidate = re.sub(r',\s*}', '}', candidate)
-            # Count braces
+            # Fix 2: Add missing closing braces
             open_braces = candidate.count('{')
             close_braces = candidate.count('}')
             if open_braces > close_braces:
@@ -48,19 +62,29 @@ def try_parse_json(text: str) -> dict | None:
                 return json.loads(candidate)
             except json.JSONDecodeError:
                 pass
-
-    # Strategy 4: Try to extract just the JSON keys using regex
-    feedback_match = re.search(r'"feedback"\s*:\s*"([^"]*)"', text)
-    next_question_match = re.search(r'"next_question"\s*:\s*"([^"]*)"', text)
-    is_complete_match = re.search(r'"is_complete"\s*:\s*(true|false)', text)
-    if feedback_match and next_question_match:
-        return {
-            "feedback": feedback_match.group(1),
-            "next_question": next_question_match.group(1),
-            "is_complete": is_complete_match.group(1) == "true" if is_complete_match else False,
-            "architecture_summary": None
-        }
-
+    
+    # Strategy 4: Manual extraction of key-value pairs (fallback)
+    try:
+        feedback_match = re.search(r'"feedback"\s*:\s*"([^"]*)"', text)
+        next_question_match = re.search(r'"next_question"\s*:\s*"([^"]*)"', text)
+        is_complete_match = re.search(r'"is_complete"\s*:\s*(true|false)', text)
+        arch_summary_match = re.search(r'"architecture_summary"\s*:\s*("[^"]*"|null)', text)
+        
+        if feedback_match:
+            result = {
+                "feedback": feedback_match.group(1),
+                "next_question": next_question_match.group(1) if next_question_match else "Can you elaborate?",
+                "is_complete": is_complete_match.group(1) == "true" if is_complete_match else False,
+                "architecture_summary": None
+            }
+            if arch_summary_match:
+                arch_value = arch_summary_match.group(1)
+                if arch_value != "null":
+                    result["architecture_summary"] = arch_value.strip('"')
+            return result
+    except Exception:
+        pass
+    
     return None
 
 
@@ -95,7 +119,7 @@ async def process_answer(state: InterviewState) -> InterviewState:
     for turn in history:
         history_text += f"{turn['role']}: {turn['content']}\n"
 
-    # Build the prompt – ask for short JSON to keep within token limits
+    # Build the prompt
     prompt = f"""
 You are a senior system design interviewer. The candidate is designing {problem}.
 
@@ -111,13 +135,20 @@ Relevant knowledge (from reference material):
 
 Based on the candidate's answer and the reference knowledge, provide:
 1. Feedback on the candidate's answer (strengths, weaknesses, suggestions) – keep it concise (max 3 sentences).
-2. The next question to ask, OR if enough information has been gathered, provide an architecture summary – keep it brief.
+2. The next question to ask, OR if enough information has been gathered, provide an architecture summary.
 3. A boolean flag `is_complete` (true if you're ready to give the architecture summary, else false).
+4. **CRITICAL: If `is_complete` is true, you MUST provide a non-null `architecture_summary`.** 
+   The summary must include a Mermaid diagram (in a code block with ```mermaid) describing the high-level architecture. 
+   Keep the summary concise but include key components, data flow, and interactions.
+   If `is_complete` is false, set `architecture_summary` to null.
 
-IMPORTANT: Return ONLY valid JSON. No markdown, no explanation, no extra text.
+IMPORTANT: Return ONLY valid JSON. No markdown, no explanation, no extra text outside the JSON.
 The JSON must have exactly these keys: feedback, next_question, is_complete, architecture_summary.
 
-Example:
+Example (complete):
+{{"feedback": "Good, you covered caching.", "next_question": "", "is_complete": true, "architecture_summary": "Here is the architecture diagram:\n```mermaid\ngraph TD\n    A[Client] --> B[Load Balancer]\n    B --> C[App Servers]\n    C --> D[Database]\n```"}}
+
+Example (not complete):
 {{"feedback": "Good, but you missed caching.", "next_question": "How would you handle caching?", "is_complete": false, "architecture_summary": null}}
 """
 
@@ -131,8 +162,8 @@ Example:
                     model="gemini-3.5-flash",
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.3,           # Lower for more deterministic output
-                        max_output_tokens=1024,    # Increased to allow complete JSON
+                        temperature=0.3,
+                        max_output_tokens=1024,
                     )
                 )
             ),
@@ -141,11 +172,12 @@ Example:
         raw = response.text.strip()
         logger.info(f"Gemini raw response (first 500 chars): {raw[:500]}...")
 
-        # ---- Parse JSON ----
-        parsed = try_parse_json(raw)
+        # ---- Extract JSON ----
+        parsed = extract_json_from_text(raw)
 
         if parsed is None:
             logger.warning("No valid JSON found, using fallback.")
+            # Try to extract feedback manually as last resort
             feedback = raw[:200] + "..." if len(raw) > 200 else raw
             parsed = {
                 "feedback": feedback,
@@ -155,6 +187,13 @@ Example:
             }
         else:
             logger.info("✅ Successfully parsed JSON.")
+            # Ensure all keys exist
+            parsed = {
+                "feedback": parsed.get("feedback", ""),
+                "next_question": parsed.get("next_question", "Can you elaborate?"),
+                "is_complete": parsed.get("is_complete", False),
+                "architecture_summary": parsed.get("architecture_summary"),
+            }
 
         # Update state
         state["feedback"] = parsed.get("feedback", "")

@@ -42,7 +42,27 @@ async def create_session(
     )
     db.add(new_session)
     await db.commit()
+    await db.refresh(new_session)
 
+     # Add welcome message
+    welcome_msg = Message(
+        session_id=new_session.id,
+        role="assistant",
+        content=f"👋 Welcome to your system design interview on **{new_session.problem_name}**!\n\nI'm your AI interviewer. Let's start with the first question.",
+    )
+    db.add(welcome_msg)
+    
+    # Add first question
+    first_question = Message(
+        session_id=new_session.id,
+        role="assistant",
+        content=f"**Question:** Describe the high-level architecture of **{new_session.problem_name}**. What are the main components and how do they interact?",
+    )
+    db.add(first_question)
+    
+    await db.commit()
+
+    # Fetch session with messages
     result = await db.execute(
         select(InterviewSession)
         .options(selectinload(InterviewSession.messages))
