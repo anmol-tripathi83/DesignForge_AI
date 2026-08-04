@@ -28,12 +28,9 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
-    ALLOWED_ORIGINS: list[str] = [
-        origin.strip()
-        for origin in os.getenv(
-            "ALLOWED_ORIGINS",
-            "http://localhost:5173"
-        ).split(",")
-    ]
+    ALLOWED_ORIGINS: str = os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:5173"
+    )
 
 settings = Settings()
