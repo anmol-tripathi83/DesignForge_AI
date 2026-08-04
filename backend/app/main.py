@@ -28,6 +28,7 @@ app.include_router(interview.router)
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting DesignForge AI backend...")
+    logger.info(f"ALLOWED_ORIGINS = {settings.ALLOWED_ORIGINS}")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
 
 @app.on_event("shutdown")

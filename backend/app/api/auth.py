@@ -98,6 +98,8 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
+    print("Cookies:", request.cookies)
+
     # Fetch user
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
