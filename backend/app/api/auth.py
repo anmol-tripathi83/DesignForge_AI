@@ -83,6 +83,9 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     """
     # Get token from cookie
     token = request.cookies.get("access_token")
+
+    print("Cookies:", request.cookies)   # debugging
+
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,7 +101,6 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    print("Cookies:", request.cookies)
 
     # Fetch user
     result = await db.execute(select(User).where(User.id == user_id))
@@ -113,7 +115,13 @@ async def logout(response: Response):
     """
     Logout the user by clearing the access_token cookie.
     """
-    response.delete_cookie("access_token", path="/")
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=True,
+        samesite="none"
+    )
+
     return {"message": "Logged out successfully"}
 
 # Dependency for protecting routes in other files
@@ -122,6 +130,7 @@ async def get_current_user_id(request: Request, db: AsyncSession = Depends(get_d
     Helper dependency to get current user ID. Used by other routes (e.g., sessions).
     """
     token = request.cookies.get("access_token")
+    print("TOKEN:", token)  # debug
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
