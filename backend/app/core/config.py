@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:5173",  # Local development
-        "https://your-frontend.vercel.app",  
+        "https://design-forge-ai-seven.vercel.app"
     ]
 
 settings = Settings()
