@@ -28,4 +28,9 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:5173",  # Local development
+        "https://your-frontend.vercel.app",  
+    ]
+
 settings = Settings()
